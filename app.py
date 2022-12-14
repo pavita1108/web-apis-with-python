@@ -1,29 +1,25 @@
 from flask import Flask, jsonify, request, render_template
 from flask_restful import Resource, Api
 from flaskext.mysql import MySQL
-import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
-import re 
+import psycopg2 
 import jwt
 from datetime import datetime, timedelta
 from functools import wraps
 import config
 
 app = Flask(__name__)
-
-db = MySQL()
-
 api = Api(app)
 
 #Set database credentials in config.
-app.config['MYSQL_DATABASE_USER'] = 'root'
-app.config['MYSQL_DATABASE_PASSWORD'] = 'pavita'
-app.config['MYSQL_DATABASE_DB'] = 'tst'
-app.config['MYSQL_DATABASE_HOST'] = 'localhost'
+user = "mwhqcdjl"
+password = "pid8EwK0PIyc3pJsOim_ooO-Urf0pvUX"
+database = "mwhqcdjl"
+host = "satao.db.elephantsql.com"
 
 
 #Initialize the MySQL extension
-db.init_app(app)
+db = psycopg2.connect(host = host , database = database, user = user , password = password)
 
 def token_required(f):
     @wraps(f)
@@ -34,8 +30,7 @@ def token_required(f):
             data = jwt.decode(token, config.SECRET_KEY,algorithms=["HS256"])
             _username = data['username']
             val = f"""SELECT * FROM userdata WHERE username = '{_username}'"""
-            conn = db.connect()
-            cursor = conn.cursor()
+            cursor = db.cursor()
             cursor.execute(val)
             current_user = cursor.fetchall
             if not current_user:
@@ -47,11 +42,10 @@ def token_required(f):
     return decorated
 
 @app.get("/view")
-@token_required 
+@token_required
 def get():
     try:
-        conn = db.connect()
-        cursor = conn.cursor()
+        cursor = db.cursor()
         cursor.execute("SELECT * FROM fertility")
         rows = cursor.fetchall()
         return jsonify(rows)
@@ -59,13 +53,11 @@ def get():
         print(e)
     finally:
         cursor.close()
-        conn.close()
 
 @app.post("/create")
 def post():
     try:
-        conn = db.connect()
-        cursor = conn.cursor()
+        cursor = db.cursor()
         _id = int(request.form['id'])
         _season = request.form['Season']
         _age = int(request.form['Age'])
@@ -80,7 +72,7 @@ def post():
 
         insertval = f"""INSERT INTO fertility VALUES({_id},{_season}, {_age}, {_cd}, {_accident}, {_surgical}, {_fevers}, {_alcohol}, {_smoking},{_sitting},{_diagnosis})"""
         cursor.execute(insertval)
-        conn.commit()
+        db.commit()
         response = jsonify(message='Data added to the dataset successfully.', id=cursor.lastrowid)
         response.status_code = 200
     except Exception as e:
@@ -89,24 +81,21 @@ def post():
         response.status_code = 400
     finally:
         cursor.close()
-        conn.close()
         return(response)
 
 @app.put("/update")
 def update():
     try:
-        conn = db.connect()
-        cursor = conn.cursor()
+        cursor = db.cursor()
         _id = int(request.form['id'])
         _cd = request.form['Childish diseases']
         _accident = request.form['Accident or serious trauma']
         _surgical = request.form['Surgical intervention']
-        _smoking = request.form['Smoking habit']
-        _diagnosis = request.form['Diagnosis']   
-        updateval = f"""UPDATE fertility SET child = {_cd}, accident = {_accident}, surgical = {_surgical}, smoking = {_smoking}, Diagnosis = {_diagnosis} WHERE id = {_id} """
+        _smoking = request.form['Smoking habit'] 
+        updateval = f"""UPDATE fertility SET child = {_cd}, accident = {_accident}, surgical = {_surgical}, smoking = {_smoking} WHERE id = {_id} """
         print(updateval)  
         cursor.execute(updateval)
-        conn.commit()
+        db.commit()
         response = jsonify(message='Data in the dataset updated successfully.', id=cursor.lastrowid)
         response.status_code = 200
     except Exception as e:
@@ -115,18 +104,16 @@ def update():
         response.status_code = 400
     finally:
         cursor.close()
-        conn.close()
         return(response)
 
 @app.delete("/remove")
 def delete ():
     try:
-        conn = db.connect()
-        cursor = conn.cursor()
+        cursor = db.cursor()
         _id = int(request.form['id'])
         delval = f"""DELETE FROM fertility WHERE id = {_id}"""
         cursor.execute(delval)
-        conn.commit()
+        db.commit()
         response = jsonify(message='Data in the dataset deleted successfully.', id=cursor.lastrowid)
         response.status_code = 200
     except Exception as e:
@@ -135,7 +122,6 @@ def delete ():
         response.status_code = 400
     finally:
         cursor.close()
-        conn.close()
         return(response)
 
 
@@ -151,8 +137,7 @@ def login():
         _password = request.form['password']
 
         val = f"""SELECT * FROM userdata WHERE username = '{_username}'"""
-        conn = db.connect()
-        cursor = conn.cursor()
+        cursor = db.cursor()
         cursor.execute(val)
         user = cursor.fetchall()
 
@@ -175,5 +160,5 @@ def login():
         print(str(ex))
         return response, 422
 
-if __name__=="__main__":
-    app.run(debug=True)
+if  __name__ == '__main__':  
+    app.run(debug=True, host="0.0.0.0", port=5002)
